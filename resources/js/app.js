@@ -1,18 +1,9 @@
-import './bootstrap';
-import { createApp } from 'vue';
-import { createStore } from 'vuex';
+import Vue from 'vue';
+import store from './store';
+import pipe from './components/pipe.vue';
 import hello from './components/hello.vue';
 
-// Create a new Vuex store
-const store = createStore({
-    state: {
-        message: 'Hello from Vuex!',
-    },
-    mutations: {},
-    actions: {},
-});
-
-// Create and mount the Vue app
-createApp(hello)
-    .use(store)
-    .mount('#app');
+new Vue({
+  store,
+  render: h => h(hello),
+}).$mount('#app');
