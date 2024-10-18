@@ -1,130 +1,147 @@
 <template>
-  <div class="inventory-search">
-    <h1>Pipe Inventory Search</h1>
+  <div>
+    <h1>Dropdown</h1>
+    
+    <!-- filter -->
     <div class="filters">
-      <div v-for="filter in filters" :key="filter.type">
-        <label :for="filter.type">{{ filter.label }}</label>
-        <select
-          :id="filter.type"
-          v-model="selectedFilters[filter.type]"
-          @change="updateFilters(filter.type)"
-        >
-          <option value="">All</option>
-          <option
-            v-for="option in getFilteredOptions(filter.type)"
-            :key="option.name"
-            :value="option.name"
-          >
-            {{ option.name }} ({{ option.quantity }})
-          </option>
-        </select>
-      </div>
-      <button @click="searchInventory" :disabled="loading">Find</button>
+      <label>Product Type:</label>
+      <select v-model="selectedProductType" @change="filterData">
+        <option value="">All</option>
+        <option v-for="(type, index) in productTypes" :key="index" :value="type">
+          {{ type }}
+        </option>
+      </select>
+
+      <label>Size:</label>
+      <select v-model="selectedSize" @change="filterData">
+        <option value="">All</option>
+        <option v-for="(size, index) in sizes" :key="index" :value="size">
+          {{ size }}
+        </option>
+      </select>
+
+      <label>Grade:</label>
+      <select v-model="selectedGrade" @change="filterData">
+        <option value="">All</option>
+        <option v-for="(grade, index) in grades" :key="index" :value="grade">
+          {{ grade }}
+        </option>
+      </select>
+
+      <label>Connection:</label>
+      <select v-model="selectedConnection" @change="filterData">
+        <option value="">All</option>
+        <option v-for="(connection, index) in connections" :key="index" :value="connection">
+          {{ connection }}
+        </option>
+      </select>
     </div>
 
-    <div v-if="loading" class="loading">Loading...</div>
-
-    <div v-else class="results">
-      <table>
-        <thead>
-          <tr>
-            <th v-for="header in tableHeaders" :key="header">{{ header }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(item, index) in paginatedResults" :key="index">
-            <td>{{ item.productType }}</td>
-            <td>{{ item.gradeType }}</td>
-            <td>{{ item.sizeType }}</td>
-            <td>{{ item.connectionType }}</td>
-            <td>{{ item.quantity }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="pagination" v-if="filteredResults.length > itemsPerPage">
-        <button @click="loadMore" :disabled="loading || allItemsLoaded">Load More</button>
-      </div>
-    </div>
+    <!-- table -->
+    <table border="1" cellspacing="0" cellpadding="5">
+      <thead>
+        <tr>
+          <th>Product Type</th>
+          <th>Size</th>
+          <th>Grade</th>
+          <th>Connection</th>
+          <th>Quantity</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="item in filteredItems" :key="item.id">
+          <td>{{ item['Product type'] }}</td>
+          <td>{{ item.size }}</td>
+          <td>{{ item.grade }}</td>
+          <td>{{ item.connection }}</td>
+          <td>{{ item.qty }} {{ item.qty_unit }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
 <script>
-import { mapState, mapGetters, mapActions } from 'vuex';
+import axios from 'axios';
 
 export default {
-  name: 'InventorySearch',
   data() {
     return {
-      selectedFilters: {
-        productType: '',
-        gradeType: '',
-        sizeType: '',
-        connectionType: '',
-      },
-      filters: [
-        { type: 'productTypes', label: 'Product Type' },
-        { type: 'gradeTypes', label: 'Grade Type' },
-        { type: 'sizeTypes', label: 'Size (OD)' },
-        { type: 'connectionTypes', label: 'Connection' },
-      ],
-      tableHeaders: ['Product Type', 'Grade Type', 'Size (OD)', 'Connection', 'Quantity'],
-      itemsPerPage: 20,
-      currentPage: 1,
+      products: [],  // data json
+
+      // filter selections
+      selectedProductType: "",
+      selectedSize: "",
+      selectedGrade: "",
+      selectedConnection: "",
+
+      // filtered data
+      filteredItems: [],
+
+      // filter options
+      productTypes: [],
+      sizes: [],
+      grades: [],
+      connections: [],
     };
   },
-  computed: {
-    ...mapState(['productTypes', 'gradeTypes', 'sizeTypes', 'connectionTypes', 'filteredResults', 'loading']),
-    ...mapGetters(['getFilteredOptions']),
-    paginatedResults() {
-      return this.filteredResults.slice(0, this.currentPage * this.itemsPerPage);
-    },
-    allItemsLoaded() {
-      return this.paginatedResults.length >= this.filteredResults.length;
-    },
-  },
+
   methods: {
-    ...mapActions(['fetchInventoryData', 'filterResults']),
-    updateFilters(type) {
-      const index = this.filters.findIndex(filter => filter.type === type);
-      for (let i = index + 1; i < this.filters.length; i++) {
-        this.selectedFilters[this.filters[i].type.slice(0, -1)] = '';
+    // default dropdown
+    initFilters() {
+      this.filteredItems = this.products;
+      this.productTypes = [...new Set(this.products.map((item) => item["Product type"]))];
+      this.sizes = [...new Set(this.products.map((item) => item.size))];
+      this.grades = [...new Set(this.products.map((item) => item.grade))];
+      this.connections = [...new Set(this.products.map((item) => item.connection))];
+    },
+
+    // axios json
+    async fetchData() {
+      try {
+        const response = await axios.get('/files/data.json');  
+        this.products = response.data.Sheet1;
+        this.initFilters();
+      } catch (error) {
+        console.error('Error fetching data:', error);
       }
-      this.searchInventory();
     },
-    getFilteredOptions(type) {
-      return this.getFilteredOptions(type, this.selectedFilters);
-    },
-    searchInventory() {
-      this.currentPage = 1;
-      this.filterResults(this.selectedFilters);
-    },
-    loadMore() {
-      this.currentPage++;
+
+    // filter dropdown
+    filterData() {
+      this.filteredItems = this.products.filter((item) => {
+        const matchesProductType = this.selectedProductType
+          ? item["Product type"] === this.selectedProductType
+          : true;
+        const matchesSize = this.selectedSize ? item.size === this.selectedSize : true;
+        const matchesGrade = this.selectedGrade ? item.grade === this.selectedGrade : true;
+        const matchesConnection = this.selectedConnection
+          ? item.connection === this.selectedConnection
+          : true;
+
+        return matchesProductType && matchesSize && matchesGrade && matchesConnection;
+      });
     },
   },
-  created() {
-    this.fetchInventoryData();
+
+  mounted() {
+    this.fetchData(); 
   },
 };
 </script>
 
 <style scoped>
-.inventory-search {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
 .filters {
-  display: flex;
-  gap: 10px;
   margin-bottom: 20px;
 }
 
-.loading {
-  text-align: center;
-  font-size: 18px;
-  margin: 20px 0;
+label {
+  margin-right: 10px;
+}
+
+select {
+  margin-right: 20px;
+  padding: 5px;
 }
 
 table {
@@ -133,17 +150,7 @@ table {
 }
 
 th, td {
-  border: 1px solid #ddd;
-  padding: 8px;
+  padding: 10px;
   text-align: left;
-}
-
-th {
-  background-color: #f2f2f2;
-}
-
-.pagination {
-  margin-top: 20px;
-  text-align: center;
 }
 </style>
